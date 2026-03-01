@@ -15,7 +15,7 @@
 Вам не нужно клонировать репозиторий или скачивать файлы вручную. Просто подключитесь к вашему серверу и выполните одну команду от имени `root`:
 
 ```bash
-sudo bash <(curl -sSL [https://raw.githubusercontent.com/MagmanPlay/ometool/main/ometool.sh](https://raw.githubusercontent.com/MagmanPlay/ometool/main/ometool.sh))
+bash <(curl -sSL https://raw.githubusercontent.com/MagmanPlay/ometool/main/ometool.sh)
 ```
 
 🛠️ Доступные модули
