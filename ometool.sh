@@ -63,13 +63,13 @@ while true; do
 
     case $choice in
         1)
-            run_remote_script "Базовая подготовка VM" "https://raw.githubusercontent.com/ТВОЙ_НИК/ТВОЙ_РЕПО/main/prepare_vm.sh"
+            run_remote_script "Базовая подготовка VM" "https://raw.githubusercontent.com/MagmanPlay/ometool/main/scripts/prepare_vm.sh"
             ;;
         2)
-            run_remote_script "Установка Docker.io" "https://raw.githubusercontent.com/ТВОЙ_НИК/ТВОЙ_РЕПО/main/install_docker.sh"
+            run_remote_script "Установка Docker.io" "https://raw.githubusercontent.com/MagmanPlay/ometool/main/scripts/install_dockerio.sh"
             ;;
         3)
-            run_remote_script "Деплой DNSTT" "https://raw.githubusercontent.com/ТВОЙ_НИК/ТВОЙ_РЕПО/main/deploy_dnstt.sh"
+            run_remote_script "Деплой DNSTT" "https://raw.githubusercontent.com/MagmanPlay/ometool/main/scripts/deploy_dnstt.sh"
             ;;
         0)
             echo -e "\n${GREEN}👋 Завершение работы. Удачи!${NC}\n"
