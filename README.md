@@ -68,15 +68,5 @@ bash <(curl -sSL https://raw.githubusercontent.com/MagmanPlay/ometool/main/ometo
 🤝 Вклад в развитие (Contributing)
 Если у вас есть идеи по улучшению скриптов или добавлению новых модулей — создавайте Pull Request или открывайте Issue.
 
-Форкните репозиторий
-
-Создайте свою ветку (git checkout -b feature/AmazingFeature)
-
-Закоммитьте изменения (git commit -m 'Add some AmazingFeature')
-
-Запушьте ветку (git push origin feature/AmazingFeature)
-
-Откройте Pull Request
-
 📄 Лицензия
 Распространяется под лицензией MIT. Подробности смотрите в файле LICENSE.
