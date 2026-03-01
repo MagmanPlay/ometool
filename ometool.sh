@@ -63,7 +63,7 @@ while true; do
 
     case $choice in
         1)
-            run_remote_script "Базовая подготовка VM" "https://raw.githubusercontent.com/MagmanPlay/ometool/main/scripts/prepare_vm.sh"
+            run_remote_script "Базовая подготовка VM" "https://raw.githubusercontent.com/MagmanPlay/ometool/main/scripts/vm_prep.sh"
             ;;
         2)
             run_remote_script "Установка Docker.io" "https://raw.githubusercontent.com/MagmanPlay/ometool/main/scripts/install_dockerio.sh"
