@@ -33,20 +33,28 @@ draw_banner() {
 run_remote_script() {
     local script_name="$1"
     local script_url="$2"
+    local tmp_script="/tmp/ometool_temp_module.sh"
 
-    echo -e "\n${YELLOW}▶ Запускаю сценарий: ${BOLD}${GREEN}${script_name}${NC}...\n"
+    echo -e "\n${YELLOW}▶ Загружаю модуль: ${BOLD}${GREEN}${script_name}${NC}...\n"
     
-    if curl -sSL "$script_url" | bash; then
-        echo -e "\n${GREEN}✅ Сценарий '${script_name}' успешно выполнен!${NC}"
+    if curl -sSL "$script_url" -o "$tmp_script"; then
+        
+        bash "$tmp_script"
+        
+        if [ $? -eq 0 ]; then
+            echo -e "\n${GREEN}✅ Модуль '${script_name}' успешно выполнен!${NC}"
+        else
+            echo -e "\n${RED}⚠️ Выполнение '${script_name}' завершено с ошибкой или прервано.${NC}"
+        fi
+        
+        rm -f "$tmp_script"
     else
-        echo -e "\n${RED}❌ Ошибка при выполнении сценария '${script_name}'.${NC}"
-        echo -e "Проверьте ссылку на GitHub или наличие интернета."
+        echo -e "\n${RED}❌ Ошибка: Не удалось скачать модуль. Проверьте ссылку или интернет.${NC}"
     fi
     
     echo -e "\nНажмите ${YELLOW}Enter${NC}, чтобы вернуться в главное меню..."
     read -r
 }
-
 # ================================================================
 # 🔄 Основной цикл меню
 # ================================================================
