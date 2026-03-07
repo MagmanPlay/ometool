@@ -30,7 +30,9 @@ echo -e "  ${GREEN}[1]${NC} 🌱 Легкая (Базовая) - Безопас�
 echo -e "  ${RED}[2]${NC} 🔥 Жесткая (Интерактивная) - Глубокий поиск мусора, логов и старых данных"
 echo -e "  ${CYAN}[0]${NC} 🚪 Выход"
 echo ""
-read -p "👉 Ваш выбор: " CLEAN_MODE
+
+# Добавлен /dev/tty
+read -p "👉 Ваш выбор: " CLEAN_MODE </dev/tty
 
 SPACE_BEFORE=$(get_avail_kb)
 
@@ -57,7 +59,7 @@ case $CLEAN_MODE in
         # 1. APT Cache
         APT_SIZE=$(du -sh /var/cache/apt 2>/dev/null | awk '{print $1}')
         echo -e "${CYAN}📦 Кэш пакетов (APT) занимает: ${YELLOW}$APT_SIZE${NC}"
-        read -p "   Удалить кэш загруженных пакетов и сироты? [y/N]: " ans
+        read -p "   Удалить кэш загруженных пакетов и сироты? [y/N]: " ans </dev/tty
         if [[ "$ans" =~ ^[Yy]$ ]]; then
             apt-get autoremove --purge -y > /dev/null 2>&1
             apt-get clean > /dev/null 2>&1
@@ -68,7 +70,7 @@ case $CLEAN_MODE in
         JOURNAL_SIZE=$(du -sh /var/log/journal 2>/dev/null | awk '{print $1}')
         if [ -n "$JOURNAL_SIZE" ]; then
             echo -e "\n${CYAN}📓 Системный журнал (systemd) занимает: ${YELLOW}$JOURNAL_SIZE${NC}"
-            read -p "   Сжать журнал до минимума (оставить 10MB)? [y/N]: " ans
+            read -p "   Сжать журнал до минимума (оставить 10MB)? [y/N]: " ans </dev/tty
             if [[ "$ans" =~ ^[Yy]$ ]]; then
                 journalctl --vacuum-size=10M > /dev/null 2>&1
                 echo -e "   ${GREEN}Журнал сжат.${NC}"
@@ -79,7 +81,7 @@ case $CLEAN_MODE in
         OLD_LOGS=$(find /var/log -type f \( -name "*.gz" -o -name "*.1" \) -exec du -ch {} + 2>/dev/null | grep total$ | awk '{print $1}')
         if [ -n "$OLD_LOGS" ]; then
             echo -e "\n${CYAN}📄 Старые архивированные логи (*.gz, *.1) занимают: ${YELLOW}$OLD_LOGS${NC}"
-            read -p "   Удалить старые логи? [y/N]: " ans
+            read -p "   Удалить старые логи? [y/N]: " ans </dev/tty
             if [[ "$ans" =~ ^[Yy]$ ]]; then
                 find /var/log -type f \( -name "*.gz" -o -name "*.1" \) -delete
                 echo -e "   ${GREEN}Старые логи удалены.${NC}"
@@ -90,7 +92,7 @@ case $CLEAN_MODE in
         CRASH_SIZE=$(du -sh /var/crash 2>/dev/null | awk '{print $1}')
         if [ "$CRASH_SIZE" != "0" ] && [ -n "$CRASH_SIZE" ]; then
             echo -e "\n${CYAN}💥 Отчеты об ошибках системы занимают: ${YELLOW}$CRASH_SIZE${NC}"
-            read -p "   Удалить отчеты о крашах? [y/N]: " ans
+            read -p "   Удалить отчеты о крашах? [y/N]: " ans </dev/tty
             if [[ "$ans" =~ ^[Yy]$ ]]; then
                 rm -rf /var/crash/*
                 echo -e "   ${GREEN}Отчеты удалены.${NC}"
@@ -102,7 +104,7 @@ case $CLEAN_MODE in
             DOCKER_SIZE=$(docker system df | awk '/Images/ {print $4}')
             echo -e "\n${CYAN}🐳 Docker обнаружен. Данные (образы, контейнеры) занимают: ${YELLOW}$DOCKER_SIZE${NC}"
             echo -e "   ${RED}ВНИМАНИЕ:${NC} Это удалит все ОСТАНОВЛЕННЫЕ контейнеры, неиспользуемые сети и образы (dangling)!"
-            read -p "   Выполнить безопасную очистку Docker? [y/N]: " ans
+            read -p "   Выполнить безопасную очистку Docker? [y/N]: " ans </dev/tty
             if [[ "$ans" =~ ^[Yy]$ ]]; then
                 docker system prune -f > /dev/null 2>&1
                 echo -e "   ${GREEN}Docker очищен.${NC}"
@@ -111,7 +113,7 @@ case $CLEAN_MODE in
         
         # 6. Очистка текущих пухлых логов без удаления файла (truncate)
         echo -e "\n${CYAN}🧹 Очистка активных логов (syslog, auth.log и т.д.)...${NC}"
-        read -p "   Обнулить текущие большие логи (безопасно)? [y/N]: " ans
+        read -p "   Обнулить текущие большие логи (безопасно)? [y/N]: " ans </dev/tty
         if [[ "$ans" =~ ^[Yy]$ ]]; then
             find /var/log -type f -name "*.log" -exec truncate -s 0 {} \;
             truncate -s 0 /var/log/syslog 2>/dev/null
