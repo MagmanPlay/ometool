@@ -50,6 +50,9 @@ run_remote_script() {
 # ================================================================
 # 🔄 Основной цикл меню
 # ================================================================
+# ================================================================
+# 🔄 Основной цикл меню
+# ================================================================
 while true; do
     draw_banner
     echo -e "${BOLD}Выберите нужное действие:${NC}\n"
@@ -57,6 +60,7 @@ while true; do
     echo -e "  ${MAGENTA}1.${NC} Базовая подготовка VM на Ubuntu 24.04 (Firewall, DNS, BBR, Cron)"
     echo -e "  ${MAGENTA}2.${NC} Установка Docker.io (Оптимизировано для Ubuntu 24.04)"
     echo -e "  ${MAGENTA}3.${NC} Деплой DNSTT (Туннелирование)"
+    echo -e "  ${MAGENTA}4.${NC} Очистка системы (Light / Hard)"
     echo -e "  ${MAGENTA}0.${NC} Выход из меню\n"
     
     read -p "👉 Ваш выбор: " choice
@@ -70,6 +74,9 @@ while true; do
             ;;
         3)
             run_remote_script "Деплой DNSTT" "https://raw.githubusercontent.com/MagmanPlay/ometool/main/scripts/deploy_dnstt.sh"
+            ;;
+        4)
+            run_remote_script "Очистка системы" "https://raw.githubusercontent.com/MagmanPlay/ometool/main/scripts/system_clean.sh" 
             ;;
         0)
             echo -e "\n${GREEN}👋 Завершение работы. Удачи!${NC}\n"
