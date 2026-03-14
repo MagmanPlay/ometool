@@ -68,6 +68,7 @@ while true; do
     echo -e "  ${MAGENTA}3.${NC} Деплой DNSTT (Туннелирование)"
     echo -e "  ${MAGENTA}4.${NC} Очистка системы (Light / Hard)"
     echo -e "  ${MAGENTA}5.${NC} Деплой Python-бота (Авто venv + systemd)"
+    echo -e "  ${MAGENTA}6.${NC} Настройка Swap-файла (Smart/Manual)"
     echo -e "  ${MAGENTA}0.${NC} Выход из меню\n"
     
     # Добавлен /dev/tty для жесткой привязки к клавиатуре
@@ -89,6 +90,9 @@ while true; do
         5)
             run_remote_script "Деплой Python-бота" "https://raw.githubusercontent.com/MagmanPlay/ometool/main/scripts/python_bot_deploy.sh"
             ;;              
+        6)
+            run_remote_script "Настройка Swap" "https://raw.githubusercontent.com/MagmanPlay/ometool/main/scripts/swap_manager.sh"
+            ;;
         0)
             echo -e "\n${GREEN}👋 Завершение работы. Удачи!${NC}\n"
             exit 0
