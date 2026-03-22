@@ -3,7 +3,6 @@
 # 💬 OMETOOL - Развертывание приватного узла SimpleX Chat
 # ================================================================
 
-# Цвета для вывода
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -56,9 +55,9 @@ case $SIMPLEX_MODE in
         echo -e "${GREEN}✅ Пароль для TURN сгенерирован автоматически.${NC}\n"
 
         # ================= УСТАНОВКА =================
-        echo -e "${CYAN}>>> [1/7] Установка зависимостей (coturn, openssl, curl, wget)...${NC}"
+        echo -e "${CYAN}>>> [1/7] Установка зависимостей...${NC}"
         DEBIAN_FRONTEND=noninteractive apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y coturn openssl curl wget -qq
+        DEBIAN_FRONTEND=noninteractive apt-get install -y coturn openssl curl wget jq libgmp10 -qq
 
         echo -e "${CYAN}>>> [2/7] Подготовка директорий и сертификатов...${NC}"
         mkdir -p /etc/simplex
@@ -76,25 +75,47 @@ case $SIMPLEX_MODE in
             echo -e "  ${GREEN}Сертификаты успешно сгенерированы.${NC}"
         fi
 
-        # Парсинг отпечатка
         CERT_FINGERPRINT=$(openssl x509 -in "$CERT_PATH" -noout -fingerprint -sha256 | awk -F'=' '{print $2}' | tr -d ':' | tr 'A-Z' 'a-z')
 
-        echo -e "${CYAN}>>> [3/7] Скачивание и установка SMP Server (Сообщения)...${NC}"
+        echo -e "${CYAN}>>> [3/7] Умный поиск и скачивание SMP Server...${NC}"
         ARCH=$(uname -m)
-        if [ "$ARCH" = "aarch64" ]; then
-            BIN_ARCH="aarch64"
-        else
-            BIN_ARCH="x86_64"
+        API_JSON=$(curl -s https://api.github.com/repos/simplex-chat/simplexmq/releases/latest)
+        
+        # Динамический поиск ссылки (сначала ищем с ubuntu, если нет - берем любую Linux сборку)
+        SMP_URL=$(echo "$API_JSON" | grep -oP '"browser_download_url": "\K[^"]*smp-server-[^"]*'"$ARCH"'[^"]*"' | grep -i "ubuntu" | head -n 1)
+        if [ -z "$SMP_URL" ]; then
+            SMP_URL=$(echo "$API_JSON" | grep -oP '"browser_download_url": "\K[^"]*smp-server-[^"]*'"$ARCH"'[^"]*"' | head -n 1)
         fi
 
-        SMP_URL="https://github.com/simplex-chat/simplexmq/releases/latest/download/smp-server-ubuntu-22_04-${BIN_ARCH}"
+        if [ -z "$SMP_URL" ]; then
+            echo -e "${RED}❌ Ошибка: Не удалось найти ссылку на SMP сервер в GitHub API!${NC}"
+            exit 1
+        fi
+        
         wget -qO /usr/local/bin/smp-server "$SMP_URL"
+        
+        # ЖЕСТКАЯ ПРОВЕРКА: Это бинарник или HTML-ошибка 404?
+        if ! head -c 4 /usr/local/bin/smp-server | grep -q "ELF"; then
+            echo -e "${RED}❌ Ошибка: Скачанный файл SMP не является программой! Возможно, GitHub изменил ссылки.${NC}"
+            exit 1
+        fi
         chmod +x /usr/local/bin/smp-server
+        echo -e "  ${GREEN}SMP Server успешно скачан и проверен.${NC}"
 
-        echo -e "${CYAN}>>> [4/7] Скачивание и установка XFTP Server (Файлы)...${NC}"
-        XFTP_URL="https://github.com/simplex-chat/simplexmq/releases/latest/download/xftp-server-ubuntu-22_04-${BIN_ARCH}"
+        echo -e "${CYAN}>>> [4/7] Умный поиск и скачивание XFTP Server...${NC}"
+        XFTP_URL=$(echo "$API_JSON" | grep -oP '"browser_download_url": "\K[^"]*xftp-server-[^"]*'"$ARCH"'[^"]*"' | grep -i "ubuntu" | head -n 1)
+        if [ -z "$XFTP_URL" ]; then
+            XFTP_URL=$(echo "$API_JSON" | grep -oP '"browser_download_url": "\K[^"]*xftp-server-[^"]*'"$ARCH"'[^"]*"' | head -n 1)
+        fi
+        
         wget -qO /usr/local/bin/xftp-server "$XFTP_URL"
+        
+        if ! head -c 4 /usr/local/bin/xftp-server | grep -q "ELF"; then
+            echo -e "${RED}❌ Ошибка: Скачанный файл XFTP не является программой!${NC}"
+            exit 1
+        fi
         chmod +x /usr/local/bin/xftp-server
+        echo -e "  ${GREEN}XFTP Server успешно скачан и проверен.${NC}"
 
         echo -e "${CYAN}>>> [5/7] Настройка Coturn (Сервер Звонков)...${NC}"
         cat <<EOF > /etc/turnserver.conf
