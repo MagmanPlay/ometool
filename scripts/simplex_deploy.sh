@@ -101,12 +101,12 @@ case $SIMPLEX_MODE in
         # Даем полные права папкам, чтобы Docker-пользователь мог в них писать и читать
         chmod -R 777 /etc/simplex
 
-        CERT_FINGERPRINT=$(openssl x509 -in "$CERT_PATH" -noout -fingerprint -sha256 | awk -F'=' '{print $2}' | tr -d ':' | tr 'A-Z' 'a-z')
+        CERT_FINGERPRINT=$(openssl x509 -in "$CERT_PATH" -outform der | sha256sum | awk '{print $1}' | xxd -r -p | base64 | tr '+/' '-_' | tr -d '=')
 
         echo -e "${CYAN}>>> [3/6] Запуск Docker-контейнера SMP Server (Сообщения)...${NC}"
         docker rm -f simplex-smp 2>/dev/null
         docker run -d --name simplex-smp --restart always \
-            -e "ADDR=$DOMAIN:5223" \
+            -e "ADDR=$DOMAIN" \
             -p 5223:443 \
             -v /etc/simplex/smp/config:/etc/opt/simplex \
             -v /etc/simplex/smp/logs:/var/opt/simplex \
