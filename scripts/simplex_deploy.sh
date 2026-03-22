@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ================================================================
-# 💬 OMETOOL - Развертывание приватного узла SimpleX Chat
+# 💬 OMETOOL - Развертывание приватного узла SimpleX Chat (DOCKER)
 # ================================================================
 
 RED='\033[0;31m'
@@ -11,11 +11,19 @@ MAGENTA='\033[0;35m'
 NC='\033[0m'
 BOLD='\033[1m'
 
-echo -e "\n${CYAN}${BOLD}💬 Управление приватным узлом SimpleX Relay...${NC}\n"
+echo -e "\n${CYAN}${BOLD}💬 Управление приватным узлом SimpleX Relay (Docker)...${NC}\n"
+
+# Проверка наличия Docker
+if ! command -v docker &> /dev/null; then
+    echo -e "${RED}❌ Ошибка: Docker не установлен!${NC}"
+    echo -e "Для установки SimpleX этим методом необходим Docker."
+    echo -e "Пожалуйста, выйдите в главное меню OMETOOL и выполните пункт [2] (Установка Docker.io)."
+    exit 1
+fi
 
 echo -e "${BOLD}Выберите действие:${NC}"
-echo -e "  ${GREEN}[1]${NC} 🚀 Полная установка (Text, Files, Calls)"
-echo -e "  ${RED}[2]${NC} 🗑️ Полное удаление (Очистка сервера от всех следов)"
+echo -e "  ${GREEN}[1]${NC} 🚀 Полная установка (Text, Files, Calls) через Docker"
+echo -e "  ${RED}[2]${NC} 🗑️ Полное удаление (Очистка контейнеров и сервера)"
 echo -e "  ${CYAN}[0]${NC} 🚪 Выход"
 echo ""
 
@@ -55,13 +63,16 @@ case $SIMPLEX_MODE in
         echo -e "${GREEN}✅ Пароль для TURN сгенерирован автоматически.${NC}\n"
 
         # ================= УСТАНОВКА =================
-        echo -e "${CYAN}>>> [1/7] Установка зависимостей...${NC}"
+        echo -e "${CYAN}>>> [1/7] Установка системных зависимостей (coturn, openssl)...${NC}"
         DEBIAN_FRONTEND=noninteractive apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y coturn openssl curl wget -qq
+        DEBIAN_FRONTEND=noninteractive apt-get install -y coturn openssl curl -qq
 
-        echo -e "${CYAN}>>> [2/7] Подготовка директорий и сертификатов...${NC}"
-        mkdir -p /etc/simplex
-        mkdir -p /var/opt/simplex/xftp
+        echo -e "${CYAN}>>> [2/7] Подготовка директорий и генерация единых SSL сертификатов...${NC}"
+        mkdir -p /etc/simplex/smp/config
+        mkdir -p /etc/simplex/smp/logs
+        mkdir -p /etc/simplex/xftp/config
+        mkdir -p /etc/simplex/xftp/logs
+        mkdir -p /etc/simplex/xftp/files
 
         if [ "$SSL_MODE" == "2" ] && [ -f "$CUSTOM_CERT" ] && [ -f "$CUSTOM_KEY" ]; then
             cp "$CUSTOM_CERT" "$CERT_PATH"
@@ -77,26 +88,40 @@ case $SIMPLEX_MODE in
 
         CERT_FINGERPRINT=$(openssl x509 -in "$CERT_PATH" -noout -fingerprint -sha256 | awk -F'=' '{print $2}' | tr -d ':' | tr 'A-Z' 'a-z')
 
-        echo -e "${CYAN}>>> [3/7] Установка бинарников через официальный скрипт SimpleX...${NC}"
-        curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/simplex-chat/simplexmq/stable/install.sh -o simplex-server-install.sh
-        chmod +x ./simplex-server-install.sh
-        echo -e "  ${YELLOW}Запуск официального установщика (это займет около минуты)...${NC}"
-        # yes "" автоматически нажимает "Enter", если официальный скрипт этого попросит
-        yes "" | ./simplex-server-install.sh > /dev/null 2>&1
-        rm -f ./simplex-server-install.sh
-        
-        if [ ! -f "/usr/local/bin/smp-server" ] || [ ! -f "/usr/local/bin/xftp-server" ]; then
-            echo -e "${RED}❌ Ошибка: Официальный скрипт не смог установить бинарники!${NC}"
-            exit 1
-        fi
-        
-        # Останавливаем дефолтные службы от разрабов, чтобы применить наши настройки с единым доменом и SSL
-        systemctl stop smp-server xftp-server > /dev/null 2>&1
-        echo -e "  ${GREEN}Официальные бинарники успешно установлены.${NC}"
+        echo -e "${CYAN}>>> [3/7] Запуск Docker-контейнера SMP Server (Сообщения)...${NC}"
+        docker rm -f simplex-smp 2>/dev/null
+        docker run -d --name simplex-smp --restart always \
+            -e "ADDR=$DOMAIN" \
+            -p 5223:5223 \
+            -v /etc/simplex/smp/config:/etc/opt/simplex:z \
+            -v /etc/simplex/smp/logs:/var/opt/simplex:z \
+            simplexchat/smp-server:latest > /dev/null
 
-        echo -e "${CYAN}>>> [4/7] Пропуск ручного скачивания (Уже выполнено)...${NC}"
+        echo -e "${CYAN}>>> [4/7] Запуск Docker-контейнера XFTP Server (Файлы)...${NC}"
+        docker rm -f simplex-xftp 2>/dev/null
+        docker run -d --name simplex-xftp --restart always \
+            -e "ADDR=$DOMAIN" \
+            -e "QUOTA=100G" \
+            -p 5224:443 \
+            -v /etc/simplex/xftp/config:/etc/opt/simplex-xftp:z \
+            -v /etc/simplex/xftp/logs:/var/opt/simplex-xftp:z \
+            -v /etc/simplex/xftp/files:/srv/xftp:z \
+            simplexchat/xftp-server:latest > /dev/null
 
-        echo -e "${CYAN}>>> [5/7] Настройка Coturn (Сервер Звонков)...${NC}"
+        echo -e "${CYAN}>>> [5/7] Интеграция SSL сертификатов и перезапуск контейнеров...${NC}"
+        echo -e "  ${YELLOW}Ожидание базовой инициализации (10 секунд)...${NC}"
+        sleep 10
+        
+        # Копируем наши сертификаты в рабочие папки контейнеров и перезапускаем их
+        cp "$CERT_PATH" /etc/simplex/smp/config/cert.pem
+        cp "$KEY_PATH" /etc/simplex/smp/config/key.pem
+        cp "$CERT_PATH" /etc/simplex/xftp/config/cert.pem
+        cp "$KEY_PATH" /etc/simplex/xftp/config/key.pem
+        
+        docker restart simplex-smp simplex-xftp > /dev/null
+        echo -e "  ${GREEN}Контейнеры успешно настроены и запущены!${NC}"
+
+        echo -e "${CYAN}>>> [6/7] Настройка Coturn (Сервер Звонков)...${NC}"
         cat <<EOF > /etc/turnserver.conf
 listening-port=3478
 tls-listening-port=5349
@@ -112,8 +137,11 @@ no-stdout-log
 EOF
 
         sed -i 's/#TURNSERVER_ENABLED=1/TURNSERVER_ENABLED=1/' /etc/default/coturn 2>/dev/null
+        systemctl daemon-reload
+        systemctl enable --now coturn > /dev/null 2>&1
+        systemctl restart coturn > /dev/null 2>&1
 
-        echo -e "${CYAN}>>> [6/7] Настройка брандмауэра (Открытие портов)...${NC}"
+        echo -e "${CYAN}>>> [7/7] Настройка брандмауэра (Открытие портов)...${NC}"
         if command -v ufw >/dev/null 2>&1; then
             ufw allow 5223/tcp comment 'SimpleX SMP' > /dev/null 2>&1
             ufw allow 5224/tcp comment 'SimpleX XFTP' > /dev/null 2>&1
@@ -126,43 +154,6 @@ EOF
         else
             echo -e "  ${YELLOW}UFW не установлен, пропуск настройки брандмауэра.${NC}"
         fi
-
-        echo -e "${CYAN}>>> [7/7] Перезапись и запуск Systemd сервисов...${NC}"
-        cat <<EOF > /etc/systemd/system/smp-server.service
-[Unit]
-Description=SimpleX SMP Server (Messaging)
-After=network.target
-
-[Service]
-ExecStart=/usr/local/bin/smp-server -l 0.0.0.0:5223 -c $CERT_PATH -k $KEY_PATH
-Restart=always
-LimitNOFILE=65535
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-        cat <<EOF > /etc/systemd/system/xftp-server.service
-[Unit]
-Description=SimpleX XFTP Server (Files)
-After=network.target
-
-[Service]
-ExecStart=/usr/local/bin/xftp-server -l 0.0.0.0:5224 -c $CERT_PATH -k $KEY_PATH -d /var/opt/simplex/xftp
-Restart=always
-LimitNOFILE=65535
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-        systemctl daemon-reload
-        systemctl enable --now smp-server > /dev/null 2>&1
-        systemctl enable --now xftp-server > /dev/null 2>&1
-        systemctl enable --now coturn > /dev/null 2>&1
-        systemctl restart coturn > /dev/null 2>&1
-
-        sleep 2
 
         # ФИНАЛ
         clear
@@ -182,12 +173,12 @@ EOF
         echo -e "🔗 TURN (Обычный): ${GREEN}turn:$TURN_USER:$TURN_PASS@$DOMAIN:3478${NC}"
         echo -e "🔗 TURN (по TLS):  ${GREEN}turns:$TURN_USER:$TURN_PASS@$DOMAIN:5349${NC}"
         echo -e "${YELLOW}===================================================================${NC}"
-        echo -e "\n${BOLD}Открытые порты в UFW:${NC}"
+        echo -e "\n${BOLD}Открытые порты (Не забудьте открыть их в облачном Firewall, если он есть!):${NC}"
         echo -e "  - ${CYAN}TCP:${NC} 5223, 5224, 3478, 5349"
         echo -e "  - ${CYAN}UDP:${NC} 3478, 5349, 49152-65535"
-        echo -e "\n${BOLD}Статус запущенных служб:${NC}"
-        systemctl status smp-server --no-pager | grep Active
-        systemctl status xftp-server --no-pager | grep Active
+        echo -e "\n${BOLD}Статус запущенных Docker-контейнеров:${NC}"
+        docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep simplex
+        echo -e "\n${BOLD}Статус сервера звонков (Coturn):${NC}"
         systemctl status coturn --no-pager | grep Active
         echo -e ""
         ;;
@@ -195,31 +186,29 @@ EOF
     2)
         # ================= ОЧИСТКА =================
         echo -e "\n${RED}${BOLD}🗑️ Запуск полного удаления SimpleX Relay...${NC}"
-        read -p "👉 Вы уверены, что хотите удалить все данные, сертификаты и службы? [y/N]: " confirm </dev/tty
+        read -p "👉 Вы уверены, что хотите удалить все данные, сертификаты и контейнеры? [y/N]: " confirm </dev/tty
         if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
             echo -e "Отмена очистки."
             exit 0
         fi
 
-        echo -e "${CYAN}>>> [1/5] Остановка и удаление systemd служб...${NC}"
-        systemctl stop smp-server xftp-server coturn 2>/dev/null
-        systemctl disable smp-server xftp-server coturn 2>/dev/null
-        rm -f /etc/systemd/system/smp-server.service
-        rm -f /etc/systemd/system/xftp-server.service
-        systemctl daemon-reload
+        echo -e "${CYAN}>>> [1/4] Остановка и удаление Docker контейнеров...${NC}"
+        docker rm -f simplex-smp simplex-xftp 2>/dev/null
 
-        echo -e "${CYAN}>>> [2/5] Удаление исполняемых файлов...${NC}"
-        rm -f /usr/local/bin/smp-server
-        rm -f /usr/local/bin/xftp-server
-
-        echo -e "${CYAN}>>> [3/5] Удаление конфигураций, сертификатов и данных XFTP...${NC}"
+        echo -e "${CYAN}>>> [2/4] Удаление файлов, конфигураций и базы данных...${NC}"
         rm -rf /etc/simplex
-        rm -rf /var/opt/simplex
         apt-get purge -y coturn >/dev/null 2>&1
         apt-get autoremove -y >/dev/null 2>&1
         rm -f /etc/turnserver.conf
 
-        echo -e "${CYAN}>>> [4/5] Удаление правил брандмауэра (UFW)...${NC}"
+        echo -e "${CYAN}>>> [3/4] Остановка системных служб (если были установлены ранее)...${NC}"
+        systemctl stop smp-server xftp-server 2>/dev/null
+        systemctl disable smp-server xftp-server 2>/dev/null
+        rm -f /etc/systemd/system/smp-server.service
+        rm -f /etc/systemd/system/xftp-server.service
+        systemctl daemon-reload
+
+        echo -e "${CYAN}>>> [4/4] Удаление правил брандмауэра (UFW)...${NC}"
         if command -v ufw >/dev/null 2>&1; then
             ufw delete allow 5223/tcp > /dev/null 2>&1
             ufw delete allow 5224/tcp > /dev/null 2>&1
