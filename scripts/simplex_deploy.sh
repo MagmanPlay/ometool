@@ -89,10 +89,14 @@ case $SIMPLEX_MODE in
         # Подготавливаем сертификаты строго под требования Docker-контейнера
         cp "$CERT_PATH" "/etc/simplex/certs/${DOMAIN}.crt"
         cp "$KEY_PATH" "/etc/simplex/certs/${DOMAIN}.key"
-        
-        # На всякий случай дублируем ключи с портом (если контейнер не обрезает порт)
-        cp "$CERT_PATH" "/etc/simplex/certs/${DOMAIN}:5224.crt" 2>/dev/null
-        cp "$KEY_PATH" "/etc/simplex/certs/${DOMAIN}:5224.key" 2>/dev/null
+
+        # SMP (5223) — ОБЯЗАТЕЛЬНО
+        cp "$CERT_PATH" "/etc/simplex/certs/${DOMAIN}:5223.crt"
+        cp "$KEY_PATH" "/etc/simplex/certs/${DOMAIN}:5223.key"
+
+        # XFTP (5224)
+        cp "$CERT_PATH" "/etc/simplex/certs/${DOMAIN}:5224.crt"
+        cp "$KEY_PATH" "/etc/simplex/certs/${DOMAIN}:5224.key"
         
         # Даем полные права папкам, чтобы Docker-пользователь мог в них писать и читать
         chmod -R 777 /etc/simplex
@@ -102,8 +106,8 @@ case $SIMPLEX_MODE in
         echo -e "${CYAN}>>> [3/6] Запуск Docker-контейнера SMP Server (Сообщения)...${NC}"
         docker rm -f simplex-smp 2>/dev/null
         docker run -d --name simplex-smp --restart always \
-            -e "ADDR=$DOMAIN" \
-            -p 5223:5223 \
+            -e "ADDR=$DOMAIN:5223" \
+            -p 5223:443 \
             -v /etc/simplex/smp/config:/etc/opt/simplex \
             -v /etc/simplex/smp/logs:/var/opt/simplex \
             -v /etc/simplex/certs:/certificates \
