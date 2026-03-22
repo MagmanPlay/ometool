@@ -57,7 +57,7 @@ case $SIMPLEX_MODE in
         # ================= УСТАНОВКА =================
         echo -e "${CYAN}>>> [1/7] Установка зависимостей...${NC}"
         DEBIAN_FRONTEND=noninteractive apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y coturn openssl curl wget jq libgmp10 -qq
+        DEBIAN_FRONTEND=noninteractive apt-get install -y coturn openssl curl wget libgmp10 -qq
 
         echo -e "${CYAN}>>> [2/7] Подготовка директорий и сертификатов...${NC}"
         mkdir -p /etc/simplex
@@ -77,45 +77,58 @@ case $SIMPLEX_MODE in
 
         CERT_FINGERPRINT=$(openssl x509 -in "$CERT_PATH" -noout -fingerprint -sha256 | awk -F'=' '{print $2}' | tr -d ':' | tr 'A-Z' 'a-z')
 
-        echo -e "${CYAN}>>> [3/7] Умный поиск и скачивание SMP Server...${NC}"
+        echo -e "${CYAN}>>> [3/7] Парсинг HTML и скачивание SMP Server (Обход лимитов API)...${NC}"
         ARCH=$(uname -m)
-        API_JSON=$(curl -s https://api.github.com/repos/simplex-chat/simplexmq/releases/latest)
-        
-        # Динамический поиск ссылки (сначала ищем с ubuntu, если нет - берем любую Linux сборку)
-        SMP_URL=$(echo "$API_JSON" | grep -oP '"browser_download_url": "\K[^"]*smp-server-[^"]*'"$ARCH"'[^"]*"' | grep -i "ubuntu" | head -n 1)
-        if [ -z "$SMP_URL" ]; then
-            SMP_URL=$(echo "$API_JSON" | grep -oP '"browser_download_url": "\K[^"]*smp-server-[^"]*'"$ARCH"'[^"]*"' | head -n 1)
-        fi
+        if [ "$ARCH" = "aarch64" ]; then BIN_ARCH="aarch64"; else BIN_ARCH="x86_64"; fi
 
-        if [ -z "$SMP_URL" ]; then
-            echo -e "${RED}❌ Ошибка: Не удалось найти ссылку на SMP сервер в GitHub API!${NC}"
+        # Получаем тег последнего релиза
+        LATEST_URL=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/simplex-chat/simplexmq/releases/latest)
+        TAG=$(basename "$LATEST_URL")
+        
+        # Загружаем HTML страницу с ассетами релиза
+        ASSETS_PAGE=$(curl -sL "https://github.com/simplex-chat/simplexmq/releases/expanded_assets/$TAG")
+        
+        # Ищем ссылку на бинарник SMP (сначала Ubuntu, затем любой совместимый)
+        SMP_URI=$(echo "$ASSETS_PAGE" | grep -oP 'href="/simplex-chat/simplexmq/releases/download/[^"]+smp-server-[^"]*'"$BIN_ARCH"'[^"]*"' | grep -i 'ubuntu' | head -n 1 | sed 's/href="//;s/"//')
+        if [ -z "$SMP_URI" ]; then
+            SMP_URI=$(echo "$ASSETS_PAGE" | grep -oP 'href="/simplex-chat/simplexmq/releases/download/[^"]+smp-server-[^"]*'"$BIN_ARCH"'[^"]*"' | head -n 1 | sed 's/href="//;s/"//')
+        fi
+        
+        if [ -z "$SMP_URI" ]; then
+            echo -e "${RED}❌ Ошибка: Не удалось найти файл smp-server на странице GitHub!${NC}"
             exit 1
         fi
         
+        SMP_URL="https://github.com$SMP_URI"
         wget -qO /usr/local/bin/smp-server "$SMP_URL"
         
-        # ЖЕСТКАЯ ПРОВЕРКА: Это бинарник или HTML-ошибка 404?
         if ! head -c 4 /usr/local/bin/smp-server | grep -q "ELF"; then
-            echo -e "${RED}❌ Ошибка: Скачанный файл SMP не является программой! Возможно, GitHub изменил ссылки.${NC}"
+            echo -e "${RED}❌ Ошибка: Скачанный файл не является бинарником!${NC}"
             exit 1
         fi
         chmod +x /usr/local/bin/smp-server
-        echo -e "  ${GREEN}SMP Server успешно скачан и проверен.${NC}"
+        echo -e "  ${GREEN}SMP Server успешно скачан (${TAG}).${NC}"
 
-        echo -e "${CYAN}>>> [4/7] Умный поиск и скачивание XFTP Server...${NC}"
-        XFTP_URL=$(echo "$API_JSON" | grep -oP '"browser_download_url": "\K[^"]*xftp-server-[^"]*'"$ARCH"'[^"]*"' | grep -i "ubuntu" | head -n 1)
-        if [ -z "$XFTP_URL" ]; then
-            XFTP_URL=$(echo "$API_JSON" | grep -oP '"browser_download_url": "\K[^"]*xftp-server-[^"]*'"$ARCH"'[^"]*"' | head -n 1)
+        echo -e "${CYAN}>>> [4/7] Парсинг HTML и скачивание XFTP Server...${NC}"
+        XFTP_URI=$(echo "$ASSETS_PAGE" | grep -oP 'href="/simplex-chat/simplexmq/releases/download/[^"]+xftp-server-[^"]*'"$BIN_ARCH"'[^"]*"' | grep -i 'ubuntu' | head -n 1 | sed 's/href="//;s/"//')
+        if [ -z "$XFTP_URI" ]; then
+            XFTP_URI=$(echo "$ASSETS_PAGE" | grep -oP 'href="/simplex-chat/simplexmq/releases/download/[^"]+xftp-server-[^"]*'"$BIN_ARCH"'[^"]*"' | head -n 1 | sed 's/href="//;s/"//')
         fi
-        
+
+        if [ -z "$XFTP_URI" ]; then
+            echo -e "${RED}❌ Ошибка: Не удалось найти файл xftp-server на странице GitHub!${NC}"
+            exit 1
+        fi
+
+        XFTP_URL="https://github.com$XFTP_URI"
         wget -qO /usr/local/bin/xftp-server "$XFTP_URL"
-        
+
         if ! head -c 4 /usr/local/bin/xftp-server | grep -q "ELF"; then
-            echo -e "${RED}❌ Ошибка: Скачанный файл XFTP не является программой!${NC}"
+            echo -e "${RED}❌ Ошибка: Скачанный файл не является бинарником!${NC}"
             exit 1
         fi
         chmod +x /usr/local/bin/xftp-server
-        echo -e "  ${GREEN}XFTP Server успешно скачан и проверен.${NC}"
+        echo -e "  ${GREEN}XFTP Server успешно скачан (${TAG}).${NC}"
 
         echo -e "${CYAN}>>> [5/7] Настройка Coturn (Сервер Звонков)...${NC}"
         cat <<EOF > /etc/turnserver.conf
