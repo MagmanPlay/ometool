@@ -107,7 +107,7 @@ case $SIMPLEX_MODE in
         docker rm -f simplex-smp 2>/dev/null
         docker run -d --name simplex-smp --restart always \
             -e "ADDR=$DOMAIN" \
-            -p 5223:443 \
+            -p 5223:5223 \
             -v /etc/simplex/smp/config:/etc/opt/simplex \
             -v /etc/simplex/smp/logs:/var/opt/simplex \
             -v /etc/simplex/certs:/certificates \
