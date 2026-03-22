@@ -57,7 +57,7 @@ case $SIMPLEX_MODE in
         # ================= УСТАНОВКА =================
         echo -e "${CYAN}>>> [1/7] Установка зависимостей...${NC}"
         DEBIAN_FRONTEND=noninteractive apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y coturn openssl curl wget libgmp10 -qq
+        DEBIAN_FRONTEND=noninteractive apt-get install -y coturn openssl curl wget -qq
 
         echo -e "${CYAN}>>> [2/7] Подготовка директорий и сертификатов...${NC}"
         mkdir -p /etc/simplex
@@ -77,58 +77,24 @@ case $SIMPLEX_MODE in
 
         CERT_FINGERPRINT=$(openssl x509 -in "$CERT_PATH" -noout -fingerprint -sha256 | awk -F'=' '{print $2}' | tr -d ':' | tr 'A-Z' 'a-z')
 
-        echo -e "${CYAN}>>> [3/7] Парсинг HTML и скачивание SMP Server (Обход лимитов API)...${NC}"
-        ARCH=$(uname -m)
-        if [ "$ARCH" = "aarch64" ]; then BIN_ARCH="aarch64"; else BIN_ARCH="x86_64"; fi
-
-        # Получаем тег последнего релиза
-        LATEST_URL=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com/simplex-chat/simplexmq/releases/latest)
-        TAG=$(basename "$LATEST_URL")
+        echo -e "${CYAN}>>> [3/7] Установка бинарников через официальный скрипт SimpleX...${NC}"
+        curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/simplex-chat/simplexmq/stable/install.sh -o simplex-server-install.sh
+        chmod +x ./simplex-server-install.sh
+        echo -e "  ${YELLOW}Запуск официального установщика (это займет около минуты)...${NC}"
+        # yes "" автоматически нажимает "Enter", если официальный скрипт этого попросит
+        yes "" | ./simplex-server-install.sh > /dev/null 2>&1
+        rm -f ./simplex-server-install.sh
         
-        # Загружаем HTML страницу с ассетами релиза
-        ASSETS_PAGE=$(curl -sL "https://github.com/simplex-chat/simplexmq/releases/expanded_assets/$TAG")
-        
-        # Ищем ссылку на бинарник SMP (сначала Ubuntu, затем любой совместимый)
-        SMP_URI=$(echo "$ASSETS_PAGE" | grep -oP 'href="/simplex-chat/simplexmq/releases/download/[^"]+smp-server-[^"]*'"$BIN_ARCH"'[^"]*"' | grep -i 'ubuntu' | head -n 1 | sed 's/href="//;s/"//')
-        if [ -z "$SMP_URI" ]; then
-            SMP_URI=$(echo "$ASSETS_PAGE" | grep -oP 'href="/simplex-chat/simplexmq/releases/download/[^"]+smp-server-[^"]*'"$BIN_ARCH"'[^"]*"' | head -n 1 | sed 's/href="//;s/"//')
-        fi
-        
-        if [ -z "$SMP_URI" ]; then
-            echo -e "${RED}❌ Ошибка: Не удалось найти файл smp-server на странице GitHub!${NC}"
+        if [ ! -f "/usr/local/bin/smp-server" ] || [ ! -f "/usr/local/bin/xftp-server" ]; then
+            echo -e "${RED}❌ Ошибка: Официальный скрипт не смог установить бинарники!${NC}"
             exit 1
         fi
         
-        SMP_URL="https://github.com$SMP_URI"
-        wget -qO /usr/local/bin/smp-server "$SMP_URL"
-        
-        if ! head -c 4 /usr/local/bin/smp-server | grep -q "ELF"; then
-            echo -e "${RED}❌ Ошибка: Скачанный файл не является бинарником!${NC}"
-            exit 1
-        fi
-        chmod +x /usr/local/bin/smp-server
-        echo -e "  ${GREEN}SMP Server успешно скачан (${TAG}).${NC}"
+        # Останавливаем дефолтные службы от разрабов, чтобы применить наши настройки с единым доменом и SSL
+        systemctl stop smp-server xftp-server > /dev/null 2>&1
+        echo -e "  ${GREEN}Официальные бинарники успешно установлены.${NC}"
 
-        echo -e "${CYAN}>>> [4/7] Парсинг HTML и скачивание XFTP Server...${NC}"
-        XFTP_URI=$(echo "$ASSETS_PAGE" | grep -oP 'href="/simplex-chat/simplexmq/releases/download/[^"]+xftp-server-[^"]*'"$BIN_ARCH"'[^"]*"' | grep -i 'ubuntu' | head -n 1 | sed 's/href="//;s/"//')
-        if [ -z "$XFTP_URI" ]; then
-            XFTP_URI=$(echo "$ASSETS_PAGE" | grep -oP 'href="/simplex-chat/simplexmq/releases/download/[^"]+xftp-server-[^"]*'"$BIN_ARCH"'[^"]*"' | head -n 1 | sed 's/href="//;s/"//')
-        fi
-
-        if [ -z "$XFTP_URI" ]; then
-            echo -e "${RED}❌ Ошибка: Не удалось найти файл xftp-server на странице GitHub!${NC}"
-            exit 1
-        fi
-
-        XFTP_URL="https://github.com$XFTP_URI"
-        wget -qO /usr/local/bin/xftp-server "$XFTP_URL"
-
-        if ! head -c 4 /usr/local/bin/xftp-server | grep -q "ELF"; then
-            echo -e "${RED}❌ Ошибка: Скачанный файл не является бинарником!${NC}"
-            exit 1
-        fi
-        chmod +x /usr/local/bin/xftp-server
-        echo -e "  ${GREEN}XFTP Server успешно скачан (${TAG}).${NC}"
+        echo -e "${CYAN}>>> [4/7] Пропуск ручного скачивания (Уже выполнено)...${NC}"
 
         echo -e "${CYAN}>>> [5/7] Настройка Coturn (Сервер Звонков)...${NC}"
         cat <<EOF > /etc/turnserver.conf
@@ -161,7 +127,7 @@ EOF
             echo -e "  ${YELLOW}UFW не установлен, пропуск настройки брандмауэра.${NC}"
         fi
 
-        echo -e "${CYAN}>>> [7/7] Создание и запуск Systemd сервисов...${NC}"
+        echo -e "${CYAN}>>> [7/7] Перезапись и запуск Systemd сервисов...${NC}"
         cat <<EOF > /etc/systemd/system/smp-server.service
 [Unit]
 Description=SimpleX SMP Server (Messaging)
