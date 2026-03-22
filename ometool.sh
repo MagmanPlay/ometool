@@ -70,6 +70,7 @@ while true; do
     echo -e "  ${MAGENTA}5.${NC} Деплой Python-бота (Авто venv + systemd)"
     echo -e "  ${MAGENTA}6.${NC} Настройка Swap-файла (Smart/Manual)"
     echo -e "  ${MAGENTA}7.${NC} Блокировка UDP (Анти-Торрент защита)"
+    echo -e "  ${MAGENTA}8.${NC} Деплой SimpleX Relay (Защищенный сервер сообщений и звонков)"
     echo -e "  ${MAGENTA}0.${NC} Выход из меню\n"
     
     # Добавлен /dev/tty для жесткой привязки к клавиатуре
@@ -96,6 +97,9 @@ while true; do
             ;;
         7)
             run_remote_script "Блокировка UDP" "https://raw.githubusercontent.com/MagmanPlay/ometool/main/scripts/udp_blocker.sh"
+            ;;
+        8)
+            run_remote_script "Деплой SimpleX Relay" "https://raw.githubusercontent.com/MagmanPlay/ometool/main/scripts/simplex_deploy.sh"
             ;;
         0)
             echo -e "\n${GREEN}👋 Завершение работы. Удачи!${NC}\n"
