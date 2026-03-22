@@ -70,7 +70,7 @@ while true; do
     echo -e "  ${MAGENTA}5.${NC} Деплой Python-бота (Авто venv + systemd)"
     echo -e "  ${MAGENTA}6.${NC} Настройка Swap-файла (Smart/Manual)"
     echo -e "  ${MAGENTA}7.${NC} Блокировка UDP (Анти-Торрент защита)"
-    echo -e "  ${MAGENTA}8.${NC} Деплой SimpleX Relay (Защищенный сервер сообщений и звонков)"
+    echo -e "  ${MAGENTA}8.${NC} Деплой SimpleX Relay (Защищенный сервер сообщений и звонков) - BETA!!!"
     echo -e "  ${MAGENTA}0.${NC} Выход из меню\n"
     
     # Добавлен /dev/tty для жесткой привязки к клавиатуре
