@@ -66,7 +66,7 @@ case $SIMPLEX_MODE in
         DEBIAN_FRONTEND=noninteractive apt-get update -qq
         DEBIAN_FRONTEND=noninteractive apt-get install -y coturn openssl curl -qq
 
-        echo -e "${CYAN}>>> [2/6] Подготовка директорий и SSL сертификатов...${NC}"
+        echo -e "${CYAN}>>> [2/6] Подготовка директорий и генерация SSL сертификатов...${NC}"
         mkdir -p /etc/simplex/smp/config
         mkdir -p /etc/simplex/smp/logs
         mkdir -p /etc/simplex/xftp/config
@@ -90,7 +90,11 @@ case $SIMPLEX_MODE in
         cp "$CERT_PATH" "/etc/simplex/certs/${DOMAIN}.crt"
         cp "$KEY_PATH" "/etc/simplex/certs/${DOMAIN}.key"
         
-        # Даем полные права папкам, чтобы Docker-пользователь 'simplex' мог в них писать и читать сертификаты
+        # На всякий случай дублируем ключи с портом (если контейнер не обрезает порт)
+        cp "$CERT_PATH" "/etc/simplex/certs/${DOMAIN}:5224.crt" 2>/dev/null
+        cp "$KEY_PATH" "/etc/simplex/certs/${DOMAIN}:5224.key" 2>/dev/null
+        
+        # Даем полные права папкам, чтобы Docker-пользователь мог в них писать и читать
         chmod -R 777 /etc/simplex
 
         CERT_FINGERPRINT=$(openssl x509 -in "$CERT_PATH" -noout -fingerprint -sha256 | awk -F'=' '{print $2}' | tr -d ':' | tr 'A-Z' 'a-z')
@@ -108,8 +112,8 @@ case $SIMPLEX_MODE in
         echo -e "${CYAN}>>> [4/6] Запуск Docker-контейнера XFTP Server (Файлы)...${NC}"
         docker rm -f simplex-xftp 2>/dev/null
         docker run -d --name simplex-xftp --restart always \
-            -e "ADDR=$DOMAIN" \
-            -e "QUOTA=100G" \
+            -e "ADDR=$DOMAIN:5224" \
+            -e "QUOTA=100gb" \
             -p 5224:443 \
             -v /etc/simplex/xftp/config:/etc/opt/simplex-xftp \
             -v /etc/simplex/xftp/logs:/var/opt/simplex-xftp \
@@ -117,8 +121,9 @@ case $SIMPLEX_MODE in
             -v /etc/simplex/certs:/certificates \
             simplexchat/xftp-server:latest > /dev/null
 
-        echo -e "  ${GREEN}Контейнеры запущены с подхватом сертификатов!${NC}"
-
+        # Ожидаем пару секунд, чтобы убедиться, что контейнеры не упали
+        sleep 4
+        
         echo -e "${CYAN}>>> [5/6] Настройка Coturn (Сервер Звонков)...${NC}"
         cat <<EOF > /etc/turnserver.conf
 listening-port=3478
@@ -174,8 +179,17 @@ EOF
         echo -e "\n${BOLD}Открытые порты (Не забудьте открыть их в облачном Firewall, если он есть!):${NC}"
         echo -e "  - ${CYAN}TCP:${NC} 5223, 5224, 3478, 5349"
         echo -e "  - ${CYAN}UDP:${NC} 3478, 5349, 49152-65535"
+        
         echo -e "\n${BOLD}Статус запущенных Docker-контейнеров:${NC}"
         docker ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep simplex
+        
+        # АВТОМАТИЧЕСКАЯ ДИАГНОСТИКА XFTP
+        XFTP_STATUS=$(docker inspect -f '{{.State.Status}}' simplex-xftp 2>/dev/null)
+        if [ "$XFTP_STATUS" != "running" ]; then
+            echo -e "\n${RED}${BOLD}⚠️ ВНИМАНИЕ: XFTP сервер не запустился! Вот логи ошибки:${NC}"
+            docker logs simplex-xftp --tail 20
+        fi
+        
         echo -e "\n${BOLD}Статус сервера звонков (Coturn):${NC}"
         systemctl status coturn --no-pager | grep Active
         echo -e ""
