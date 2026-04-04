@@ -139,7 +139,7 @@ echo -e "🌐 ${BOLD}Домен:${NC}            $DOMAIN"
 echo -e "🔑 ${BOLD}Публичный ключ:${NC}   ${GREEN}$PUBKEY${NC}"
 echo -e "👤 ${BOLD}Пользователь SSH:${NC} ${GREEN}$VPN_USER${NC}"
 echo -e "🔒 ${BOLD}Пароль SSH:${NC}       ${RED}$USER_PASS${NC}  <-- ОБЯЗАТЕЛЬНО СОХРАНИТЕ!"
-echo -e "🔌 ${BOLD}Порт UDPGW:${NC}       7300 (Укажите в клиенте на вашем Redmi 12 или ПК)"
+echo -e "🔌 ${BOLD}Порт UDPGW:${NC}       7300 (Укажите в клиенте на вашем устройстве)"
 echo -e "${YELLOW}===============================================${NC}"
 echo -e "\n${BOLD}Статус сервисов:${NC}"
 systemctl status dnstt --no-pager | grep Active
